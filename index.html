@@ -28,6 +28,7 @@
             --ai-msg: #1e2633;
             --scrollbar: #3a4150;
             --danger: #ff6b6b;
+            --code-bg: rgba(255, 255, 255, 0.05); /* Подложка для кода */
         }
 
         body.light-theme {
@@ -41,6 +42,7 @@
             --user-msg: #e3f2fd;
             --ai-msg: #f0f4f8;
             --scrollbar: #cbd5e0;
+            --code-bg: rgba(0, 0, 0, 0.05);
         }
 
         body {
@@ -276,6 +278,7 @@
             word-wrap: break-word;
             position: relative;
             box-shadow: 0 2px 8px var(--shadow);
+            white-space: pre-wrap; /* Чтобы не обрезало */
         }
 
         .message.user .message-bubble {
@@ -293,6 +296,7 @@
             font-size: 15px;
             line-height: 1.5;
             white-space: pre-wrap;
+            overflow: visible; /* Чтобы не обрезало */
         }
 
         .message-model {
@@ -300,6 +304,36 @@
             opacity: 0.7;
             margin-bottom: 4px;
             font-weight: 500;
+        }
+
+        pre {
+            background: var(--code-bg);
+            padding: 10px;
+            border-radius: 8px;
+            overflow-x: auto;
+            margin: 8px 0;
+        }
+
+        code {
+            background: var(--code-bg);
+            padding: 2px 4px;
+            border-radius: 4px;
+        }
+
+        table {
+            border-collapse: collapse;
+            width: 100%;
+            margin: 8px 0;
+        }
+
+        th, td {
+            border: 1px solid var(--border);
+            padding: 8px;
+            text-align: left;
+        }
+
+        th {
+            background: var(--bg-card);
         }
 
         .typing-indicator {
@@ -405,6 +439,7 @@
             justify-content: center;
             transition: all 0.3s ease;
             font-size: 20px;
+            min-width: 40px; /* Чтобы всегда видно */
         }
 
         .send-btn {
@@ -424,6 +459,20 @@
         .send-btn:disabled {
             opacity: 0.5;
             cursor: not-allowed;
+        }
+
+        @media (max-width: 768px) {
+            .input-container {
+                gap: 4px;
+            }
+            .attach-btn, .send-btn, .stop-btn {
+                padding: 8px;
+                font-size: 18px;
+                min-width: 36px;
+            }
+            .input-area {
+                padding: 8px 12px;
+            }
         }
 
         /* Welcome Screen */
@@ -663,8 +712,6 @@
         }
 
         // Load chat
-// Куда вставить: найдите существующую функцию loadChat(chatId) и замените её целиком.
-
         function loadChat(chatId) {
             currentChatId = chatId;
             const chat = chats[chatId];
@@ -687,6 +734,7 @@
             }
             
             updateChatHistory();
+            chatArea.scrollTop = chatArea.scrollHeight; // Скролл в конец
         }
 
         // Save chats to localStorage
@@ -754,8 +802,6 @@
         }
 
         // Add message to UI
-// Куда вставить: найдите существующую функцию addMessageToUI(...) и замените её целиком.
-
         function addMessageToUI(content, role, model) {
             const chatArea = document.getElementById('chatArea');
             const welcomeScreen = document.getElementById('welcomeScreen');
@@ -1031,9 +1077,10 @@
             }
         }
         
-		// Куда вставить: после функции stopGeneration()
-
         function parseMarkdownToHTML(text) {
+            // Обработка таблиц
+            text = parseMarkdownTables(text);
+
             // Заменяем блоки кода (```...```)
             let html = text.replace(/```([a-z]*)\n([\s\S]+?)```/g, (match, lang, code) => {
                 const escapedCode = code.replace(/</g, '&lt;').replace(/>/g, '&gt;');
@@ -1052,6 +1099,39 @@
 
             return html;
         }
+
+        function parseMarkdownTables(text) {
+            // Простой парсер для markdown-таблиц
+            return text.replace(/((^\|[^\n]+\|\n?)+)/gm, (match) => {
+                const lines = match.trim().split('\n');
+                if (lines.length < 2) return match;
+
+                // Проверяем, является ли вторая строка разделителем (---)
+                if (!lines[1].match(/^\|?(\s*[-:]+\s*\|?)+$/)) return match;
+
+                let tableHtml = '<table>';
+                
+                // Заголовки
+                tableHtml += '<thead><tr>';
+                lines[0].split('|').map(cell => cell.trim()).filter(cell => cell).forEach(cell => {
+                    tableHtml += `<th>${cell}</th>`;
+                });
+                tableHtml += '</tr></thead>';
+
+                // Тело
+                tableHtml += '<tbody>';
+                for (let i = 2; i < lines.length; i++) {
+                    tableHtml += '<tr>';
+                    lines[i].split('|').map(cell => cell.trim()).filter(cell => cell).forEach(cell => {
+                        tableHtml += `<td>${cell}</td>`;
+                    });
+                    tableHtml += '</tr>';
+                }
+                tableHtml += '</tbody></table>';
+
+                return tableHtml;
+            });
+        }
 		
         // Handle image upload (placeholder - requires backend processing)
         function handleImageUpload(event) {
@@ -1068,7 +1148,7 @@
             event.target.value = '';
         }
         
-        // Telegram WebApp integration
+        // Telegram WebApp integration (optional)
         if (window.Telegram && window.Telegram.WebApp) {
             const tg = window.Telegram.WebApp;
             tg.ready();
