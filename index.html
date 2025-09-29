@@ -576,8 +576,15 @@
             if ((!message && !attachedImageBase64 && !isContinuation) || isGenerating) return;
             if (!currentChatId) startNewChat();
 
+            const isVisionChat = attachedImageBase64 && VISION_MODELS.includes(settings.selectedModel);
+            let userMessageContent;
+            if (isVisionChat) {
+                userMessageContent = [{ type: 'text', text: message }, { type: 'image_url', image_url: { url: attachedImageBase64 } }];
+            } else {
+                userMessageContent = message;
+            }
+
             if (!isContinuation) {
-                let userMessageContent = attachedImageBase64 ? [{ type: 'text', text: message }, { type: 'image_url', image_url: { url: attachedImageBase64 } }] : message;
                 addMessageToUI(userMessageContent, 'user');
                 chats[currentChatId].messages.push({ role: 'user', content: userMessageContent });
                 if (chats[currentChatId].messages.length === 1) chats[currentChatId].title = message.substring(0, 30) || 'Чат с изображением';
@@ -587,6 +594,7 @@
             saveChats(); updateChatHistory(); input.value = ''; autoResize(input);
             await fetchAndStreamResponse();
         }
+
         async function continueGeneration(button) {
              if (isGenerating) return;
              button.disabled = true; button.textContent = 'Генерация...';
@@ -697,9 +705,16 @@
         function transformMessagesForGoogle(messages, isContinuation) {
             const contents = messages.map(msg => {
                 const parts = Array.isArray(msg.content)
-                    ? msg.content.map(p => p.type === 'text' ? { text: p.text } : { inlineData: { mimeType: p.image_url.url.match(/:(.*?);/)[1], data: p.image_url.url.split(',')[1] } })
+                    ? msg.content.map(p => {
+                        if (p.type === 'text') return { text: p.text };
+                        if (p.type === 'image_url') {
+                            const mimeType = p.image_url.url.match(/:(.*?);/)?.[1] || 'image/jpeg';
+                            const data = p.image_url.url.split(',')[1];
+                            return { inlineData: { mimeType, data } };
+                        }
+                    })
                     : [{ text: msg.content }];
-                return { role: msg.role === 'user' ? 'user' : 'model', parts };
+                return { role: msg.role === 'user' ? 'user' : 'model', parts: parts.filter(p => p) };
             });
             if (isContinuation) contents.push({ role: 'user', parts: [{text: 'Продолжи свой ответ без вступлений.'}] });
             const systemInstruction = settings.customSystemPrompt ? { parts: [{ text: settings.customSystemPrompt }] } : null;
